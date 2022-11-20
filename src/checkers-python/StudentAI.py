@@ -9,7 +9,8 @@ import sys
 
 class node:
     #class for nodes in MCTS
-    def __init__(self, num_simulations, num_parent_wins, parent):
+    def __init__(self, move, num_simulations, num_parent_wins, parent):
+        self.move = move #the move parent made to get to this node
         self.num_simulations: int = num_simulations #si in slides
         self.num_parent_wins: int =  num_parent_wins #wi in slides
         self.children = [] #list of child nodes
@@ -17,13 +18,13 @@ class node:
  
     
     def get_uct(self, exploration_parameter = 1): 
-        return = sqrt(log(self.parent.num_simulations) / self.num_simulations) + (self.num_parent_wins / self.num_simulations)
+        return = (exploration_parameter * sqrt(log(self.parent.num_simulations) / self.num_simulations)) + (self.num_parent_wins / self.num_simulations)
 
     def add_child(self, new_child: node):
         'adds a child to the children list'
         children.append(new_child)
 
-    def propogate(self, is_win: bool):
+    def back_propogate(self, is_win: bool):
         'adds the result to the stats and propogates it up to the parent'
         self.num_simulations += 1
         if not is_win: # this counts parent wins, so if the current node is a loss, the parent node will have a victory
@@ -31,6 +32,10 @@ class node:
         
         if self.parent:
             self.propogate(not is_win) # it will alternate back and forth if it was a win, since half the nodes will be opponent moves that will count this as a loss
+    
+    def pick_best_move(self): #this function should only be called by the root node
+        'returns the best move'
+        return max(self.children, key = lambda x: x.num_parent_wins / x.num_simulations).move
             
 
 
