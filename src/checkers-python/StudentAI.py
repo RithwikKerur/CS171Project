@@ -1,9 +1,39 @@
 from random import randint
 from BoardClasses import Move
 from BoardClasses import Board
+from math import sqrt
+from numpy import log
 import sys
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
+
+class node:
+    #class for nodes in MCTS
+    def __init__(self, num_simulations, num_parent_wins, parent):
+        self.num_simulations: int = num_simulations #si in slides
+        self.num_parent_wins: int =  num_parent_wins #wi in slides
+        self.children = [] #list of child nodes
+        self.parent: node = parent #if root, should be null
+ 
+    
+    def get_uct(self, exploration_parameter = 1): 
+        return = sqrt(log(self.parent.num_simulations) / self.num_simulations) + (self.num_parent_wins / self.num_simulations)
+
+    def add_child(self, new_child: node):
+        'adds a child to the children list'
+        children.append(new_child)
+
+    def propogate(self, is_win: bool):
+        'adds the result to the stats and propogates it up to the parent'
+        self.num_simulations += 1
+        if not is_win: # this counts parent wins, so if the current node is a loss, the parent node will have a victory
+            self.num_parent_wins += 1
+        
+        if self.parent:
+            self.propogate(not is_win) # it will alternate back and forth if it was a win, since half the nodes will be opponent moves that will count this as a loss
+            
+
+
 class StudentAI():
 
     def __init__(self,col,row,p):
@@ -29,7 +59,7 @@ class StudentAI():
         return best_move
 
 
-    def move_kings(self, move, color):
+    def move_kings(self, move, color) -> bool: # returns a boolean for if the move kings or not
         if color == 2:
             if move[-1][0] == 0:
                 return True
