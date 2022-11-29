@@ -1,42 +1,62 @@
 from random import randint
 from BoardClasses import Move
 from BoardClasses import Board
-from math import sqrt
-from numpy import log
+from math import sqrt, log
 import sys
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
 
-class node:
+class Node():
     #class for nodes in MCTS
-    def __init__(self, move, num_simulations, num_parent_wins, parent):
-        self.move = move #the move parent made to get to this node
-        self.num_simulations: int = num_simulations #si in slides
-        self.num_parent_wins: int =  num_parent_wins #wi in slides
+    def __init__(self, color, move = None, parent = None):
+        self.move = move #the move parent made to get to this node. If None, must be root node
+        self.color = color #color of whose move it is. Always inverse to the parents
+        self.num_simulations: int = 0 #si in slides
+        self.num_parent_wins: int = 0 #wi in slides
         self.children = [] #list of child nodes
-        self.parent: node = parent #if root, should be null
+        self.parent = parent #if root, should be null
+        self.current_child = 0 #index of what child we are currently expanding
+        self.uct = 0
  
     
-    def get_uct(self, exploration_parameter = 1): 
-        return = (exploration_parameter * sqrt(log(self.parent.num_simulations) / self.num_simulations)) + (self.num_parent_wins / self.num_simulations)
+    def get_uct(self) -> float: 
+        return self.uct
 
-    def add_child(self, new_child: node):
-        'adds a child to the children list'
-        children.append(new_child)
+    def get_current_child(self):
+        'returns the current child to be expanded'
+        self.current_child += 1
+        return self.children[self.current_child - 1]
 
-    def back_propogate(self, is_win: bool):
+    def add_children(self, moves: [[Move]], opp_color):
+        'extends the list of children when given a list of moves'
+        self.children.extend((Node(opp_color, move, self)  for piece in moves for move in piece))
+
+    def back_propogate(self, winning_color): # returns the number of undos that need to be performed
         'adds the result to the stats and propogates it up to the parent'
         self.num_simulations += 1
-        if not is_win: # this counts parent wins, so if the current node is a loss, the parent node will have a victory
-            self.num_parent_wins += 1
-        
+        if winning_color != self.color: # this is a win for the move made associated with this node
+            self.num_parent_wins += 1 #if the node is black, and the winning color is white, it should count as a win since the move associated with this node was made by a white piece
+
+
+
         if self.parent:
-            self.propogate(not is_win) # it will alternate back and forth if it was a win, since half the nodes will be opponent moves that will count this as a loss
+            self.uct = (1.4 * sqrt(log(self.parent.num_simulations+1) / self.num_simulations)) + (self.num_parent_wins / self.num_simulations)
+            return self.parent.back_propogate(winning_color) + 1 # it will alternate back and forth if it was a win, since half the nodes will be opponent moves that will count this as a loss
+        return 0
     
-    def pick_best_move(self): #this function should only be called by the root node
+    def pick_best_move(self) -> Move: #this function should only be called by the root node
         'returns the best move'
         return max(self.children, key = lambda x: x.num_parent_wins / x.num_simulations).move
             
+    def is_leaf_node(self) -> bool: 
+        'returns whether the current node is a leaf node'
+        return len(self.children) == 0
+    
+    def is_fully_expanded(self) -> bool:
+        'returns whether all the children of this node have been expanded into'
+        return len(self.children) == self.current_child
+    
+
 
 
 class StudentAI():
@@ -57,9 +77,10 @@ class StudentAI():
         else:
             self.color = 1
 
-        print(f'color = {self.color}')
+        #print(f'color = {self.color}')
         moves = self.board.get_all_possible_moves(self.color)
-        best_move, heuristic = self.recur_best_move(moves, 3, self.color)
+        #best_move, heuristic = self.recur_best_move(moves, 3, self.color)
+        best_move = self.monte_carlo()
         self.board.make_move(best_move, self.color)
         return best_move
 
@@ -177,6 +198,64 @@ class StudentAI():
 
         #print(f'returning {heuristic} depth = {depth}')
         return (best_move, heuristic)
+
+
+    def find_next_node(self, root):  # this is selection AND expansion
+        'returns the node for MCTS to simulate off of'
+        curr_node = root
+
+        while not curr_node.is_leaf_node() and curr_node.is_fully_expanded(): #selection; keeps going till a node is terminal or has unexplored children
+            curr_node = self.best_uct(curr_node) # best child UCT
+            #print(f"Making Move: {curr_node.move}")
+            self.board.make_move(curr_node.move, self.opponent[curr_node.color]) #keeps the board up to date for rollout purposes
+            
+
+        if curr_node.is_leaf_node(): #we need to add the children of the current node into the tree if it has no children
+            curr_node.add_children(self.board.get_all_possible_moves(curr_node.color), self.opponent[curr_node.color]) # if terminal node, adds the children
+
+        result =  curr_node.get_current_child() # returns new unexplored node 
+        #print(f"Making Move: {result.move}")
+        self.board.make_move(result.move, self.opponent[result.color])
+        return result
+            
+
+    def pick_random_move(self, moves):
+        index = randint(0,len(moves)-1)
+        inner_index =  randint(0,len(moves[index])-1)
+        return moves[index][inner_index]
+
+    def simulation(self, node): #rollout for MCTS, random moves
+        current_color = self.opponent[node.color]
+        num_moves = 0
+        while not self.board.is_win(current_color):
+            current_color = self.opponent[current_color] # flip color
+            moves = self.board.get_all_possible_moves(current_color) 
+            self.board.make_move(self.pick_random_move(moves), current_color) #make random move
+            num_moves+=1
+
+        for x in range(num_moves):
+            self.board.undo()
+        return current_color
+
+        
+
+    def best_uct(self, node):
+        return max(node.children, key = lambda x: x.get_uct())
+
+    def monte_carlo(self, iterations = 500): 
+        
+        root = Node(self.color)
+        root.add_children(self.board.get_all_possible_moves(self.color), self.opponent[self.color])
+        for _x in range(iterations):
+            #print(f'mcts loop {_x+1}')
+            node = self.find_next_node(root)
+            winning_color = self.simulation(node) #do simulation here
+            undos = node.back_propogate(winning_color)
+
+            for _x in range(undos):
+                self.board.undo()
+
+        return root.pick_best_move()
 
 
 
